@@ -501,6 +501,12 @@ def _curl_create(max_simultaneous_connections=None):
         curl.setopt(pycurl.VERBOSE, 1)
         curl.setopt(pycurl.DEBUGFUNCTION, _curl_debug)
     curl.setopt(pycurl.MAXCONNECTS, max_simultaneous_connections or 5)
+    # A hack for platforms where curl doesn't ship with any cert authorities.
+    import os
+    try:
+        curl.setopt(pycurl.CAINFO, os.environ["CURL_CA_BUNDLE"])
+    except KeyError:
+        pass
     return curl
 
 
