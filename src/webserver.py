@@ -122,8 +122,7 @@ class UserServicesHandler(WebHandler):
     for anID in user.identities:
       services.append(anID.name())
 
-    self.set_header("Content-Type", "text/json")
-    self.write(json.dumps(result))
+    self.write(result)
 
 class AddConnectHandler(WebHandler):
   @tornado.web.asynchronous
