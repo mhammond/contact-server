@@ -50,7 +50,8 @@
     var permissionStorage = TypedStorage("perm").open();
 
     chan.bind("get", function(t, args) {
-      console.log("Contacts call: get");
+        if (console)
+            console.log("Contacts call: get");
         // indicate that response will occur asynchronously, later.
         t.delayReturn(true);
 

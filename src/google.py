@@ -27,69 +27,6 @@ from urlparse import urlparse
 import gravatar
 import model  # replace this with a dbserver
 import xmlreader
-   
-
-# The OpenID+OAuth hybrid stuff doesn't work for us because (AFAICT) we're not
-# world-routable yet.  So this is just doing authentication and then we hand
-# off to the authorizer.
-class GoogleConnectHandler(tornado.web.RequestHandler, tornado.auth.GoogleMixin):
-  @tornado.web.asynchronous
-  def get(self):
-    if self.get_argument("openid.mode", None):
-      self.get_authenticated_user(self.async_callback(self.onConnect))
-      return
-    to = self.get_argument("to", None)
-    if not to: to = "/"
-    self.authenticate_redirect(callback_uri = "http://localhost:8300/connect/google?" + urllib.urlencode({"to":to}))
-    
-  # Got the response and unpacked OpenID parameters: handle it
-  def onConnect(self, claimed_user_data):
-    if not claimed_user_data:
-      logging.warning("Could not log in Google user")
-      self.write("unable to connect")
-      self.finish()
-      return
-    
-    # Now do we have a user for this Google identity?
-    claimed_id = claimed_user_data["claimed_id"] if "claimed_id" in claimed_user_data else claimed_user_data["email"]
-    if not claimed_id:
-      self.write("unable to get an identifier")
-      self.finish()
-      return 
-
-    try:
-      session = model.Session()
-      id_list = model.identity(session, claimed_id)
-      if id_list and len(id_list) > 0:
-        if len(id_list) > 1: # uh oh
-          self.write("More than one user has claimed this identity.  That's confusing.  We should try to merge them somehow?")
-          self.finish()
-          return
-          
-        user = id_list[0].user
-        logging.info("Google ID %s logged in succesfully to user account %s" % (claimed_id, user.id))
-      else:
-        # new user
-        user = model.User()
-        session.add(user)
-        id = model.Identity(claimed_id, user, claimed_user_data["name"], model.OP_GOOGLE)
-        id.verifiedNow()
-        session.add(id)
-        session.commit()
-
-      self.set_secure_cookie("uid", str(user.id))
-      
-      # Where to?
-    except Exception, e:
-      logging.exception(e)
-      session.rollback()
-    
-    #self.write("Success.  <a href='/fetch/google?" + urllib.urlencode(user["access_token"]) + "'>Load Google Contacts</a>")
-    to = self.get_argument("to", None)
-    if to:
-      self.redirect(to)
-    else:
-      self.redirect("/")
 
 # This works even on localhost - but it doesn't give us the user's ID.
 # For now that's okay.  Once we're routable we should be able to do it
@@ -132,18 +69,14 @@ class GoogleAuthorizeHandler(tornado.web.RequestHandler, tornado.auth.OAuthMixin
     # but it could be a problem.
     access_token = tornado.auth._oauth_parse_response(response.body)
     session = model.Session()
-    user = model.user(session, uid)
-    id = user.identity(session, model.OP_GOOGLE)
-    if id:
-      id.accessToken = access_token["key"]
-      id.accessSecret = access_token["secret"]
-      session.add(id)
-      session.commit()
-    else: # strange, we have no id for this user
-      self.write("Whoops - we don't have an authenticated Google login for you.  That's weird.")
-      self.finish()
-      return
-    
+    provider = model.user_provider(session, uid, "google")
+    if provider is None:
+      provider = model.Provider(uid, "google")
+      session.add(provider)
+    provider.accessToken = access_token["key"]
+    provider.accessSecret = access_token["secret"]
+    session.commit()
+
     self.write("Success.  Saved access codes for Google.  <a href='/fetch/google'>Take a look</a>")
     self.finish()
 
@@ -175,10 +108,12 @@ class GoogleFetchHandler(tornado.web.RequestHandler, tornado.auth.OAuthMixin):
     page = self.get_argument("page", None)
 
     session = model.Session()
-    user = model.user(session, uid)
-    id = user.identity(session, model.OP_GOOGLE)
+    provider = model.user_provider(session, uid, "google")
+    if not provider:
+      logging.warn("No google provider: redirecting to connect")
+      return self.redirect("/connect/google")
 
-    access_token = {"key":id.accessToken, "secret":id.accessSecret}
+    access_token = {"key":provider.accessToken, "secret":provider.accessSecret}
     url = "http://www.google.com/m8/feeds/contacts/default/full"
       
     if access_token:

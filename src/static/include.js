@@ -594,10 +594,8 @@ if (!navigator.apps.services.contacts) {
 
         // Called once on first command to create the iframe to myapps.mozillalabs.com
         function setupWindow() {
-          console.log("yo - iframe is " + iframe);
             if(iframe) { return; }
 
-          console.log("yo");
             // Create hidden iframe dom element
             var doc = win.document;
             iframe = document.createElement("iframe");

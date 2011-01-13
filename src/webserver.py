@@ -39,8 +39,13 @@ class WebHandler(tornado.web.RequestHandler):
     return None
    
 class MainHandler(WebHandler):
-	def get(self):
-		self.render("index_no_user.html", errorMessage=None)
+  def get(self):
+    uid = self.get_secure_cookie("uid")
+    if uid:
+      self.render("index.html")
+    else:
+      self.render("index_no_user.html", errorMessage=None)
+
 
 class ListViewHandler(WebHandler):
 	def get(self):
@@ -116,11 +121,10 @@ class UserServicesHandler(WebHandler):
       return self.write("""{status:"error", message:"No user session"}""")
 
     session = model.Session()
-    user = model.user(session, uid)
     result = {"status":"ok"}
     services = result["services"] = []
-    for anID in user.identities:
-      services.append(anID.name())
+    for aProv in model.all_user_providers(session, uid):
+      services.append(aProv.provider)
 
     self.write(result)
 
@@ -218,12 +222,12 @@ application = tornado.web.Application([
 
     (r"/fetch/google", google.GoogleFetchHandler),
     (r"/getresource/google", google.GoogleGetResourceHandler),
-    (r"/connect/google", google.GoogleConnectHandler),
+#    (r"/connect/google", google.GoogleConnectHandler),
     (r"/authorize/google", google.GoogleAuthorizeHandler),
 
     (r"/fetch/yahoo", yahoo.YahooFetchHandler),
-    (r"/connect/yahoo", yahoo.YahooConnectHandler),
-    (r"/authorize/yahoo", yahoo.YahooAuthorizeHandler),
+#    (r"/connect/yahoo", yahoo.YahooConnectHandler),
+#    (r"/authorize/yahoo", yahoo.YahooAuthorizeHandler),
 
 #    (r"/connect/facebook", FacebookConnectHandler),
 #    (r"/connect/yahoo", YahooConnectHandler),
