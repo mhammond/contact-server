@@ -169,9 +169,15 @@ class GoogleFetchHandler(tornado.web.RequestHandler, tornado.auth.OAuthMixin):
                   href = link["@href"]
                   photos.append({ "value": "http://localhost:8300/getresource/google?" + urllib.urlencode({"rsrc":link["@href"]}), "type": link["@type"] })
 
-      self.write(json.dumps(result))
+      # these headers shouldn't be set here, but for now...
+      self.set_header("Access-Control-Allow-Origin", "http://localhost:8301")
+      self.set_header('Access-Control-Allow-Credentials', 'true')
+      self.set_header('Cache-Control', 'no-cache')
+      self.set_header('Pragma', 'no-cache')
+      self.write(result)
       self.finish()
-      
+
+
 class GoogleGetResourceHandler(tornado.web.RequestHandler, tornado.auth.OAuthMixin):
   @tornado.web.asynchronous
   def get(self):
